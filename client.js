@@ -15,7 +15,7 @@ window.__ModuleLoader__.load({
     const h = React.createElement
 
     const NS = 'deepseek-balance'
-    const VERSION = '1.1.0'
+    const VERSION = '1.2.0'
     const SLOT = 'conversation.composer.dock'
     const ROUTE = '/dsh-balance/summary'
     const USAGE_URL = 'https://platform.deepseek.com/usage'
@@ -246,8 +246,10 @@ window.__ModuleLoader__.load({
     function tickAction(state, now) {
       if (!state) return 'none'
       if (state.status === 'loading' || state.status === 'error' || state.status === 'missing-key') return 'refresh'
-      if (state.status !== 'ready' || state.fetchedAt === null) return 'none'
-      return localDay(now) === localDay(state.fetchedAt) ? 'none' : 'refresh'
+      if (state.status !== 'ready') return 'none'
+      if (state.fetchedAt === null) return 'refresh'
+      if (localDay(now) !== localDay(state.fetchedAt)) return 'refresh'
+      return now - state.fetchedAt >= 60000 ? 'refresh' : 'none'
     }
 
     function messageOf(value) {
@@ -518,7 +520,7 @@ window.__ModuleLoader__.load({
 
     function makeBalanceCell(ctx) {
       return function BalanceCell(props) {
-        const { useSessionStatus, sessionId, t } = props
+        const { useSessionStatus, useProjection, sessionId, t } = props
         const controller = React.useMemo(
           () =>
             createBalanceController({
@@ -562,6 +564,16 @@ window.__ModuleLoader__.load({
           if (statusShouldRefresh(previousRunning.current, running)) controller.refresh()
           previousRunning.current = running
         }, [running, controller])
+
+        // A settle step is the durable signal that a turn spent tokens.
+        const stats = typeof useProjection === 'function' ? useProjection('sessionStats') : undefined
+        const settledSteps = stats && typeof stats.steps === 'number' ? stats.steps : 0
+        const previousSteps = React.useRef(settledSteps)
+        React.useEffect(() => {
+          if (settledSteps === previousSteps.current) return
+          previousSteps.current = settledSteps
+          controller.refresh()
+        }, [settledSteps, controller])
 
         React.useEffect(() => {
           if (tickAction({ status: state.status, fetchedAt: state.fetchedAt }, now) === 'refresh') {

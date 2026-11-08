@@ -135,12 +135,14 @@ test('D10 only a running-to-idle transition asks for a refresh', () => {
   assert.equal(statusShouldRefresh(true, undefined), false)
 })
 
-test('D11 the clock tick retries unfinished reads and rolls the day over', () => {
+test('D11 the clock tick retries unfinished reads, polls a ready cell and rolls the day over', () => {
   const now = new Date(2026, 10, 9, 10, 0, 0).getTime()
   assert.equal(tickAction({ status: 'loading', fetchedAt: null }, now), 'refresh')
   assert.equal(tickAction({ status: 'error', fetchedAt: null }, now), 'refresh')
   assert.equal(tickAction({ status: 'missing-key', fetchedAt: null }, now), 'refresh')
-  assert.equal(tickAction({ status: 'ready', fetchedAt: now - 60_000 }, now), 'none')
+  assert.equal(tickAction({ status: 'ready', fetchedAt: now - 30_000 }, now), 'none')
+  assert.equal(tickAction({ status: 'ready', fetchedAt: now - 60_000 }, now), 'refresh')
+  assert.equal(tickAction({ status: 'ready', fetchedAt: now - 300_000 }, now), 'refresh')
   const yesterday = new Date(2026, 10, 8, 23, 0, 0).getTime()
   assert.equal(tickAction({ status: 'ready', fetchedAt: yesterday }, now), 'refresh')
   assert.equal(tickAction(undefined, now), 'none')
